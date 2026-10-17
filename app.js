@@ -37,7 +37,7 @@ form.addEventListener('submit', event => {
   const chosenDate = new Date(`${data.date}T12:00:00`);
   const details = [
     ['Service', data.service], ['Preferred date', chosenDate.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })],
-    ['Preferred time', data.time], ['Name', data.name], ['Email', data.email], ['Location', data.location], ['Your notes', data.message || 'No additional notes']
+    ['Preferred time', data.time], ['Name', data.name], ['Email', data.email], ['Phone', data.phone || 'Not provided'], ['Number of people', data.people], ['Location', data.location], ['Your notes', data.message || 'No additional notes']
   ];
   details.forEach(([label, value]) => {
     const row = document.createElement('div');
@@ -46,6 +46,7 @@ form.addEventListener('submit', event => {
     row.append(term, definition); list.append(row);
   });
   form.hidden = true; review.hidden = false;
+  document.querySelector('#enquiry-action-status').textContent = '';
   document.querySelector('#edit-enquiry').focus({ preventScroll: true });
   review.scrollIntoView({ block: 'center', behavior: 'smooth' });
 });
@@ -66,3 +67,42 @@ document.querySelectorAll('[data-photo]').forEach(button => {
 dialog.querySelector('button').addEventListener('click', () => dialog.close());
 dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } });
 dialog.addEventListener('close', () => galleryTrigger?.focus());
+
+const filterButtons = [...document.querySelectorAll('[data-filter]')];
+const galleryItems = [...document.querySelectorAll('[data-photo]')];
+filterButtons.forEach(button => button.addEventListener('click', () => {
+  filterButtons.forEach(filter => filter.setAttribute('aria-pressed', String(filter === button)));
+  galleryItems.forEach(item => { item.hidden = button.dataset.filter !== 'all' && !item.dataset.category.split(' ').includes(button.dataset.filter); });
+  const count = galleryItems.filter(item => !item.hidden).length;
+  document.querySelector('#gallery-status').textContent = `${count} inspiration ${count === 1 ? 'look' : 'looks'}`;
+  document.querySelector('#gallery-empty').hidden = count > 0;
+}));
+function movePhoto(direction) {
+  const visibleItems = galleryItems.filter(item => !item.hidden);
+  const current = visibleItems.indexOf(galleryTrigger);
+  galleryTrigger = visibleItems[(current + direction + visibleItems.length) % visibleItems.length];
+  const source = galleryTrigger.querySelector('img');
+  dialog.querySelector('img').src = source.src;
+  dialog.querySelector('img').alt = source.alt;
+  dialog.querySelector('p').textContent = galleryTrigger.querySelector('em').textContent;
+  document.querySelector('#photo-position').textContent = `${visibleItems.indexOf(galleryTrigger) + 1} / ${visibleItems.length}`;
+}
+galleryItems.forEach(item => item.addEventListener('click', () => movePhoto(0)));
+document.querySelector('#previous-photo').addEventListener('click', () => movePhoto(-1));
+document.querySelector('#next-photo').addEventListener('click', () => movePhoto(1));
+dialog.addEventListener('keydown', event => {
+  if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); movePhoto(event.key === 'ArrowLeft' ? -1 : 1); }
+});
+function enquiryText() {
+  return 'Enquiry for Makeup by Manisha\n\n' + [...document.querySelectorAll('#review-details > div')].map(row => `${row.querySelector('dt').textContent}: ${row.querySelector('dd').textContent}`).join('\n') + '\n\nNot sent. Appointment and availability have not been confirmed.';
+}
+document.querySelector('#download-enquiry').addEventListener('click', () => {
+  const url = URL.createObjectURL(new Blob([enquiryText()], { type: 'text/plain;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = 'manisha-makeup-enquiry.txt'; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  document.querySelector('#enquiry-action-status').textContent = 'Your download has been prepared. The enquiry has not been sent.';
+});
+document.querySelector('#copy-enquiry').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(enquiryText()); document.querySelector('#enquiry-action-status').textContent = 'Details copied. Your enquiry has not been sent.'; }
+  catch { document.querySelector('#enquiry-action-status').textContent = 'Copy isn’t available in this browser. Download your enquiry instead.'; }
+});
